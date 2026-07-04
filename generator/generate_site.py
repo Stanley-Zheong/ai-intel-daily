@@ -36,7 +36,7 @@ def render_item(row):
         who_is_affected=escape(row["who_is_affected"] or ""),
         business_impact=escape(row["business_impact"] or ""),
         recommended_action=escape(row["recommended_action"] or ""),
-        url=row["url"],
+        url=escape_attr(safe_url(row["url"])),
         published_at=(row["published_at"] or "")[:10],
     )
 
@@ -48,6 +48,17 @@ def escape(s):
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
+
+
+def escape_attr(s):
+    return escape(s).replace('"', "&quot;").replace("'", "&#x27;")
+
+
+def safe_url(u):
+    u = u or ""
+    if not u.lower().startswith(("http://", "https://")):
+        return "#"
+    return u
 
 
 def main():
