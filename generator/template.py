@@ -1,0 +1,88 @@
+HEAD = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{page_title}</title>
+<style>
+  :root {{
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --border: #e5e5e5;
+    --accent: #0f62fe;
+    --bg-card: #fafafa;
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--fg);
+    background: #ffffff;
+    line-height: 1.6;
+  }}
+  .wrap {{ max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }}
+  header.site {{ margin-bottom: 40px; }}
+  header.site h1 {{ font-size: 28px; margin: 0 0 6px; }}
+  header.site p {{ color: var(--muted); margin: 0; font-size: 14px; }}
+  nav.top {{ margin-top: 16px; font-size: 14px; }}
+  nav.top a {{ color: var(--accent); text-decoration: none; margin-right: 16px; }}
+  nav.top a:hover {{ text-decoration: underline; }}
+  .item {{
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 18px;
+    background: var(--bg-card);
+  }}
+  .item .cat {{
+    display: inline-block;
+    font-size: 12px;
+    color: var(--accent);
+    background: rgba(15,98,254,0.08);
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }}
+  .item h2 {{ font-size: 18px; margin: 0 0 8px; }}
+  .item .one-liner {{ font-weight: 600; margin: 0 0 14px; }}
+  .item .field {{ margin-bottom: 8px; font-size: 14px; }}
+  .item .field b {{ color: var(--muted); font-weight: 500; margin-right: 6px; }}
+  .item .meta {{ margin-top: 14px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 10px; }}
+  .item .meta a {{ color: var(--accent); text-decoration: none; }}
+  .score {{ font-size: 12px; color: var(--muted); float: right; }}
+  footer {{ margin-top: 50px; font-size: 12px; color: var(--muted); text-align: center; }}
+  .empty {{ color: var(--muted); text-align: center; padding: 60px 0; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="site">
+  <h1>AI 行业情报日报</h1>
+  <p>自动抓取 · 人工筛选 · AI 摘要评分</p>
+  <nav class="top"><a href="/">最新</a><a href="/archive.html">历史归档</a></nav>
+</header>
+"""
+
+ITEM = """<div class="item">
+  <span class="score">分数 {final_score}</span>
+  <div class="cat">{category}</div>
+  <h2>{title}</h2>
+  <p class="one-liner">{one_sentence}</p>
+  <div class="field"><b>发生了什么</b>{what_happened}</div>
+  <div class="field"><b>影响谁</b>{who_is_affected}</div>
+  <div class="field"><b>为什么重要</b>{business_impact}</div>
+  <div class="field"><b>建议动作</b>{recommended_action}</div>
+  <div class="meta">
+    <a href="{url}" target="_blank" rel="noopener">原始来源 →</a>
+    &nbsp;·&nbsp; {published_at}
+  </div>
+</div>
+"""
+
+FOOT = """<footer>更新时间 {generated_at} · Powered by ai-intel-daily</footer>
+</div>
+</body>
+</html>
+"""
+
+EMPTY = '<div class="empty">今天还没有已发布的情报条目。</div>'
