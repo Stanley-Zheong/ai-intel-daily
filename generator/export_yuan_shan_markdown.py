@@ -141,6 +141,15 @@ def target_for_row(row: sqlite3.Row, out_dir: Path) -> Path:
         return default_target
 
     for existing in sorted(out_dir.glob("*.md")):
+        if existing == default_target:
+            continue
+        if source_url_from_markdown(existing) == source_url:
+            return existing
+
+    if default_target.exists() and source_url_from_markdown(default_target) == source_url:
+        return default_target
+
+    for existing in sorted(out_dir.glob("*.md")):
         if source_url_from_markdown(existing) == source_url:
             return existing
     return default_target

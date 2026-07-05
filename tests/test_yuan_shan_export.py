@@ -208,10 +208,25 @@ published: true
             conn.row_factory = sqlite3.Row
             rows = export_yuan_shan_markdown.fetch_items(conn)
             conn.close()
+            openai_row = next(row for row in rows if row["url"] == "https://openai.example/pricing")
+            duplicate = out_dir / f"{export_yuan_shan_markdown.stable_slug(openai_row)}.md"
+            duplicate.write_text(
+                """---
+title: 重复标题
+section: yuan-shan
+source_url: https://openai.example/pricing
+published: true
+---
+
+重复正文
+""",
+                encoding="utf-8",
+            )
             export_yuan_shan_markdown.export_rows(rows, out_dir, dry_run=False)
 
             files = sorted(path.name for path in out_dir.glob("*.md"))
             self.assertIn("2026-07-04-openai-pricing.md", files)
+            self.assertNotIn(duplicate.name, files)
             self.assertEqual(
                 len(
                     [
