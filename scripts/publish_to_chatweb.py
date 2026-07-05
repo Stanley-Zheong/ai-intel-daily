@@ -59,6 +59,10 @@ def verify_manifest(rows: list[sqlite3.Row], chatweb_repo: Path) -> dict[str, in
         or item.get("meta", {}).get("canonical_url")
         for item in yuan_shan
     }
+    markdown_source_urls = {
+        export_yuan_shan_markdown.source_url_from_markdown(path)
+        for path in (chatweb_repo / "content" / "yuan-shan").glob("*.md")
+    }
 
     missing: list[str] = []
     for row in rows:
@@ -66,7 +70,7 @@ def verify_manifest(rows: list[sqlite3.Row], chatweb_repo: Path) -> dict[str, in
         source_url = str(export_yuan_shan_markdown.row_get(row, "url", "") or "")
         slug = export_yuan_shan_markdown.stable_slug(row)
         markdown_path = chatweb_repo / "content" / "yuan-shan" / f"{slug}.md"
-        if not markdown_path.exists():
+        if not markdown_path.exists() and source_url not in markdown_source_urls:
             missing.append(f"missing markdown: {markdown_path}")
         if title not in manifest_titles and source_url not in manifest_source_urls:
             missing.append(f"missing manifest row: {title or source_url or slug}")
