@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """Export publishable RSS intelligence rows into dia-for Yuan Shan Markdown files.
 
 This exporter is cumulative by design: it writes one Markdown file per source
