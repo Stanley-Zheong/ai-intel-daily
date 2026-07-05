@@ -37,7 +37,7 @@ def ensure_schema(conn: sqlite3.Connection, schema_path: Path = DEFAULT_SCHEMA) 
         for row in conn.execute("PRAGMA table_info(intelligence_items)").fetchall()
     }
     migrations = {
-        "updated_at": "ALTER TABLE intelligence_items ADD COLUMN updated_at TEXT DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "ALTER TABLE intelligence_items ADD COLUMN updated_at TEXT",
         "raw_payload": "ALTER TABLE intelligence_items ADD COLUMN raw_payload TEXT",
     }
     for column, statement in migrations.items():
