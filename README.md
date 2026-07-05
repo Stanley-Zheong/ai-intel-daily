@@ -47,3 +47,59 @@ docs/sources/index.html
   ```
 
 导入只写 `crawler_intel_candidates` 表,初始状态恒为 `candidate`;不会自动发布到 `docs/`,不会进入邮件或公开页面。对象存储同步由外层 cron/rclone/wrangler 处理,脚本本身不保存任何云端密钥。
+
+## 当前定位
+
+这个仓库的 `docs/index.html` 属于历史兼容发布链路，只展示生成时选中的条目。
+新的正式信息站以 `dia-for/chatweb` 为发布端，RSS 情报进入该站的 **远山** 栏目。
+
+累计式导出脚本：
+
+```bash
+python3 generator/export_yuan_shan_markdown.py \
+  --db /opt/miniflux-rsshub/intel/intel.db \
+  --out-dir /path/to/chatweb/content/yuan-shan
+```
+
+正式 cron 不应直接调用裸导出器，而应调用带校验的桥接脚本：
+
+```bash
+python3 scripts/publish_to_chatweb.py \
+  --db /opt/miniflux-rsshub/intel/intel.db \
+  --chatweb-repo /path/to/chatweb \
+  --sync-miniflux \
+  --min-publishable 1 \
+  --build \
+  --deploy \
+  --qa-live
+```
+
+该脚本会按顺序执行：
+
+```text
+Miniflux starred entries
+  -> intelligence_items(status = starred_for_daily)
+  -> intelligence_items(status in starred_for_daily / processed / published)
+  -> chatweb/content/yuan-shan/*.md
+  -> chatweb npm run content:manifest
+  -> 校验每条可发布 DB 行都进入远山 Markdown 和 manifest
+  -> 可选 build/deploy/qa:live
+```
+
+`--sync-miniflux` 会先调用 Miniflux API 拉取 `starred=true` 的条目。同步脚本会把
+starred 条目写成 `starred_for_daily`，避免条目停留在默认 `candidate` 状态而无法发布。
+
+如果可发布行数低于 `--min-publishable`，或者有 DB 行没有进入 `content-manifest.json`，脚本会非零退出，cron 日志会直接暴露链路断点。
+
+导出规则：
+
+- 只导出 `status in ('starred_for_daily', 'processed', 'published')` 的情报。
+- 每条情报生成一个稳定 Markdown 文件，不清空、不覆盖整个站点页面。
+- Markdown frontmatter 写入 `section: yuan-shan`，由 `chatweb` 统一生成列表页、分类页和详情页。
+- 远山分类规范为 `AI`、`数据`、`新能源`、`传统AI+`、`教育AI+`。
+
+本地验证：
+
+```bash
+python3 -m unittest discover -s tests -v
+```
