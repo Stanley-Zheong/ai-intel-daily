@@ -184,6 +184,46 @@ class TestYuanShanExport(unittest.TestCase):
             self.assertEqual(len(yuan_shan), 2)
             self.assertEqual(len(list((chatweb / "content" / "yuan-shan").glob("*.md"))), 2)
 
+    def test_exporter_reuses_existing_markdown_with_same_source_url(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / "intel.db"
+            out_dir = Path(td) / "yuan-shan"
+            out_dir.mkdir()
+            make_db(db)
+            legacy = out_dir / "2026-07-04-openai-pricing.md"
+            legacy.write_text(
+                """---
+title: 旧标题
+section: yuan-shan
+source_url: https://openai.example/pricing
+published: true
+---
+
+旧正文
+""",
+                encoding="utf-8",
+            )
+
+            conn = sqlite3.connect(db)
+            conn.row_factory = sqlite3.Row
+            rows = export_yuan_shan_markdown.fetch_items(conn)
+            conn.close()
+            export_yuan_shan_markdown.export_rows(rows, out_dir, dry_run=False)
+
+            files = sorted(path.name for path in out_dir.glob("*.md"))
+            self.assertIn("2026-07-04-openai-pricing.md", files)
+            self.assertEqual(
+                len(
+                    [
+                        path
+                        for path in out_dir.glob("*.md")
+                        if "https://openai.example/pricing" in path.read_text(encoding="utf-8")
+                    ]
+                ),
+                1,
+            )
+            self.assertIn("OpenAI API 价格页更新", legacy.read_text(encoding="utf-8"))
+
     def test_publish_to_chatweb_fails_when_no_publishable_rows(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             db = Path(td) / "intel.db"

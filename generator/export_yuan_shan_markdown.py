@@ -4,7 +4,8 @@ from __future__ import annotations
 """Export publishable RSS intelligence rows into dia-for Yuan Shan Markdown files.
 
 This exporter is cumulative by design: it writes one Markdown file per source
-item and never deletes old articles from the destination directory.
+item. If a previous Markdown file already points to the same source URL, the
+exporter updates that file to preserve existing public links.
 """
 
 import argparse
@@ -120,6 +121,31 @@ def yaml_array(values: Iterable[str]) -> str:
     return "[" + ", ".join(yaml_scalar(value) for value in cleaned) + "]"
 
 
+def source_url_from_markdown(path: Path) -> str:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+    for line in text.splitlines():
+        if line.startswith(("source_url:", "canonical_url:")):
+            value = line.split(":", 1)[1].strip()
+            return value.strip('"').strip("'")
+    return ""
+
+
+def target_for_row(row: sqlite3.Row, out_dir: Path) -> Path:
+    default_target = out_dir / f"{stable_slug(row)}.md"
+    source_url = str(row_get(row, "url", "") or "")
+    if not source_url:
+        return default_target
+
+    for existing in sorted(out_dir.glob("*.md")):
+        if source_url_from_markdown(existing) == source_url:
+            return existing
+    return default_target
+
+
 def body_field(label: str, value: str | None) -> str:
     if not value:
         return ""
@@ -183,7 +209,8 @@ def export_rows(rows: list[sqlite3.Row], out_dir: Path, dry_run: bool) -> tuple[
     unchanged = 0
 
     for row in rows:
-        target = out_dir / f"{stable_slug(row)}.md"
+        default_target = out_dir / f"{stable_slug(row)}.md"
+        target = target_for_row(row, out_dir)
         content = render_markdown(row)
         if target.exists() and target.read_text(encoding="utf-8") == content:
             unchanged += 1
@@ -192,6 +219,9 @@ def export_rows(rows: list[sqlite3.Row], out_dir: Path, dry_run: bool) -> tuple[
         written += 1
         if not dry_run:
             target.write_text(content, encoding="utf-8")
+            if default_target != target and default_target.exists():
+                if source_url_from_markdown(default_target) == str(row_get(row, "url", "") or ""):
+                    default_target.unlink()
 
     return written, unchanged
 
