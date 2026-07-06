@@ -29,7 +29,7 @@ OUT_DIR = os.environ.get(
     str(Path(DEFAULT_CHATWEB_REPO) / "content" / "yuan-shan"),
 )
 
-PUBLISH_STATUSES = ("starred_for_daily", "processed", "published")
+PUBLISH_STATUSES = ("publish_ready", "processed", "published")
 
 CATEGORY_MAP = {
     "ai": "AI",
@@ -121,6 +121,14 @@ def yaml_array(values: Iterable[str]) -> str:
     return "[" + ", ".join(yaml_scalar(value) for value in cleaned) + "]"
 
 
+def split_tags(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [item.strip() for item in re.split(r"[,，\n]", str(value)) if item.strip()]
+
+
 def source_url_from_markdown(path: Path) -> str:
     try:
         text = path.read_text(encoding="utf-8")
@@ -161,10 +169,16 @@ def body_field(label: str, value: str | None) -> str:
     return f"## {label}\n\n{value.strip()}\n\n"
 
 
+def lang_block(lang: str, content: str) -> str:
+    return f"<!-- lang:{lang} -->\n{content.strip()}\n<!-- /lang:{lang} -->\n"
+
+
 def render_markdown(row: sqlite3.Row) -> str:
     category = normalize_category(str(row_get(row, "source_category", "") or ""))
     title = str(row_get(row, "title", "") or "未命名情报").strip()
+    title_en = str(row_get(row, "title_en", "") or title).strip()
     summary = str(row_get(row, "ai_summary") or row_get(row, "what_happened") or "").strip()
+    summary_en = str(row_get(row, "summary_en", "") or summary).strip()
     source_name = str(
         row_get(row, "feed_title")
         or row_get(row, "source_name")
@@ -173,12 +187,15 @@ def render_markdown(row: sqlite3.Row) -> str:
     ).strip()
     source_url = str(row_get(row, "url", "") or "")
     created = date_part(str(row_get(row, "published_at", "") or ""))
-    tags = ["远山", category]
+    tags = ["远山", category, *split_tags(row_get(row, "tags"))]
+    tags_zh = split_tags(row_get(row, "tags_zh")) or tags
+    tags_en = split_tags(row_get(row, "tags_en")) or split_tags(row_get(row, "tags")) or [category]
 
     frontmatter = "\n".join(
         [
             "---",
             f"title: {yaml_scalar(title)}",
+            f"title_en: {yaml_scalar(title_en)}",
             'section: "yuan-shan"',
             f"category: {yaml_scalar(category)}",
             f"topic: {yaml_scalar('远山')}",
@@ -186,9 +203,15 @@ def render_markdown(row: sqlite3.Row) -> str:
             f"source_url: {yaml_scalar(source_url)}",
             f"canonical_url: {yaml_scalar(source_url)}",
             f"summary: {yaml_scalar(summary)}",
+            f"summary_en: {yaml_scalar(summary_en)}",
             "published: true",
             f"created: {yaml_scalar(created)}",
             f"tags: {yaml_array(tags)}",
+            f"tags_zh: {yaml_array(tags_zh)}",
+            f"tags_en: {yaml_array(tags_en)}",
+            'language: "bilingual"',
+            f"rss_entry_id: {yaml_scalar(row_get(row, 'miniflux_entry_id', '') or '')}",
+            f"source: {yaml_scalar('rss/' + slugify(source_name or 'feed'))}",
             f"rss_source: {yaml_scalar(source_name)}",
             f"score: {int(row_get(row, 'final_score', 0) or 0)}",
             f"impact_score: {int(row_get(row, 'impact_score', 0) or 0)}",
@@ -199,17 +222,38 @@ def render_markdown(row: sqlite3.Row) -> str:
         ]
     )
 
-    body = ""
-    body += body_field("一句话结论", row_get(row, "ai_summary"))
-    body += body_field("发生了什么", row_get(row, "what_happened"))
-    body += body_field("影响谁", row_get(row, "who_is_affected"))
-    body += body_field("为什么重要", row_get(row, "business_impact"))
-    body += body_field("建议动作", row_get(row, "recommended_action"))
+    if row_get(row, "body_zh"):
+        body_zh = str(row_get(row, "body_zh", "") or "")
+    else:
+        body_zh = ""
+        body_zh += body_field("一句话结论", row_get(row, "ai_summary"))
+        body_zh += body_field("发生了什么", row_get(row, "what_happened"))
+        body_zh += body_field("背景", row_get(row, "background_zh"))
+        body_zh += body_field("目的", row_get(row, "purpose_zh"))
+        body_zh += body_field("影响谁", row_get(row, "who_is_affected"))
+        body_zh += body_field("为什么重要", row_get(row, "business_impact"))
+        body_zh += body_field("建议动作", row_get(row, "recommended_action"))
+
+    if row_get(row, "body_en"):
+        body_en = str(row_get(row, "body_en", "") or "")
+    else:
+        body_en = ""
+        body_en += body_field("One-line Takeaway", row_get(row, "summary_en"))
+        body_en += body_field("Context", row_get(row, "context_en"))
+        body_en += body_field("Background", row_get(row, "background_en"))
+        body_en += body_field("Purpose", row_get(row, "purpose_en"))
+        body_en += body_field("Impact", row_get(row, "impact_en"))
+        body_en += body_field("Recommended Action", row_get(row, "action_en"))
 
     if source_url:
-        body += f"## 原始来源\n\n[{source_name}]({source_url})\n\n"
+        body_zh += f"## 原始来源\n\n[{source_name}]({source_url})\n\n"
+        body_en += f"## Original Source\n\n[{source_name}]({source_url})\n\n"
 
-    return frontmatter + (body.strip() or summary or title) + "\n"
+    body = lang_block("zh", body_zh or summary or title)
+    body += "\n"
+    body += lang_block("en", body_en or summary_en or title_en)
+
+    return frontmatter + body.strip() + "\n"
 
 
 def export_rows(rows: list[sqlite3.Row], out_dir: Path, dry_run: bool) -> tuple[int, int]:
@@ -232,6 +276,24 @@ def export_rows(rows: list[sqlite3.Row], out_dir: Path, dry_run: bool) -> tuple[
                 if source_url_from_markdown(default_target) == str(row_get(row, "url", "") or ""):
                     default_target.unlink()
 
+    return written, unchanged
+
+
+def export_obsidian_rows(rows: list[sqlite3.Row], raw_dir: Path, dry_run: bool) -> tuple[int, int]:
+    written = 0
+    unchanged = 0
+    for row in rows:
+        source_name = str(row_get(row, "feed_title") or row_get(row, "source_name") or "rss")
+        target_dir = raw_dir / slugify(source_name)
+        target = target_dir / f"{stable_slug(row)}.md"
+        content = render_markdown(row)
+        if target.exists() and target.read_text(encoding="utf-8") == content:
+            unchanged += 1
+            continue
+        written += 1
+        if not dry_run:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
     return written, unchanged
 
 

@@ -38,7 +38,7 @@ class FakeResponse:
 
 
 class TestSyncMiniflux(unittest.TestCase):
-    def test_starred_entries_are_publishable(self) -> None:
+    def test_starred_entries_are_pending_ai(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             db = Path(td) / "intel.db"
             entries = [
@@ -56,7 +56,7 @@ class TestSyncMiniflux(unittest.TestCase):
             ).fetchall()
             conn.close()
 
-            self.assertEqual([row["status"] for row in rows], ["starred_for_daily", "starred_for_daily"])
+            self.assertEqual([row["status"] for row in rows], ["starred_pending_ai", "starred_pending_ai"])
             self.assertEqual(rows[1]["source_category"], "08_CDO中央数据组织")
 
     def test_existing_published_row_is_not_downgraded(self) -> None:
@@ -86,7 +86,31 @@ class TestSyncMiniflux(unittest.TestCase):
             make_minimal_chatweb(chatweb)
             entries = [miniflux_entry(1, "AI 发布样例", "https://example.com/ai")]
 
-            with patch.object(sync_miniflux.requests, "get", return_value=FakeResponse(entries)):
+            def fake_enrich(db_path, api_key, base_url, model, limit, timeout):
+                conn = sqlite3.connect(db_path)
+                conn.execute(
+                    """
+                    UPDATE intelligence_items
+                    SET status = 'publish_ready',
+                        ai_summary = 'AI 摘要',
+                        title_en = 'AI sample',
+                        summary_en = 'AI summary',
+                        body_zh = '## 背景\n\nAI 生成中文正文。',
+                        body_en = '## Background\n\nAI generated English body.',
+                        tags = 'AI,测试',
+                        tags_zh = 'AI,测试',
+                        tags_en = 'AI,Test',
+                        final_score = 90
+                    """
+                )
+                conn.commit()
+                conn.close()
+                return {"pending": 1, "ready": 1, "needs_review": 0, "skipped": 0}
+
+            with (
+                patch.object(sync_miniflux.requests, "get", return_value=FakeResponse(entries)),
+                patch.object(publish_to_chatweb.ai_enrich, "enrich_pending", side_effect=fake_enrich),
+            ):
                 rc = publish_to_chatweb.main(
                     [
                         "--db",
@@ -98,6 +122,7 @@ class TestSyncMiniflux(unittest.TestCase):
                         "https://miniflux.example",
                         "--miniflux-token",
                         "test-token",
+                        "--enrich-pending",
                     ]
                 )
 
@@ -108,6 +133,7 @@ class TestSyncMiniflux(unittest.TestCase):
             self.assertEqual(len(manifest), 1)
             self.assertEqual(manifest[0]["meta"]["section"], "yuan-shan")
             self.assertEqual(manifest[0]["meta"]["title"], "AI 发布样例")
+            self.assertEqual(manifest[0]["meta"]["title_en"], "AI sample")
 
 
 if __name__ == "__main__":

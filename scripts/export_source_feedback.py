@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 
-PUBLISH_STATUSES = {"starred_for_daily", "processed", "published"}
+PUBLISH_STATUSES = {"publish_ready", "processed", "published"}
 
 
 def _stable_sha(obj: Any) -> str:
@@ -45,7 +45,7 @@ def _rows(conn: sqlite3.Connection) -> List[sqlite3.Row]:
         SELECT title, url, feed_title, feed_url, source_category, published_at,
                ai_summary, final_score, tags, status
         FROM intelligence_items
-        WHERE status IN ('starred_for_daily', 'processed', 'published')
+        WHERE status IN ('publish_ready', 'processed', 'published')
         ORDER BY published_at DESC, final_score DESC
         LIMIT 200
     """).fetchall()
@@ -72,7 +72,7 @@ def build_batch(conn: sqlite3.Connection, *, batch_id: str, topic: str,
             "entity_candidates": [],
             "rss_signals": {
                 "saved": row["status"] in PUBLISH_STATUSES,
-                "starred": row["status"] == "starred_for_daily",
+                "starred": row["status"] == "publish_ready",
                 "published": row["status"] in PUBLISH_STATUSES,
                 "final_score": row["final_score"] or 0,
             },

@@ -17,7 +17,7 @@ DB_PATH = os.environ.get("INTEL_DB_PATH", "/opt/miniflux-rsshub/intel/intel.db")
 OUT_DIR = os.environ.get("SITE_OUT_DIR", os.path.join(os.path.dirname(__file__), "..", "docs"))
 
 # Only verified or daily-worthy records are public. Crawler candidates stay private.
-PUBLISH_STATUSES = ("starred_for_daily", "processed", "published")
+PUBLISH_STATUSES = ("publish_ready", "processed", "published")
 
 
 def fetch_items(conn: sqlite3.Connection) -> list[sqlite3.Row]:

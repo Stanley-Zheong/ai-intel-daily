@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from generator import export_yuan_shan_markdown
+from scripts import ai_enrich
 from scripts import sync_miniflux
 
 
@@ -28,6 +29,7 @@ DEFAULT_CHATWEB_REPO = os.environ.get(
     "CHATWEB_REPO_PATH",
     "/Users/laosanzheong/Documents/codebases/chatweb",
 )
+DEFAULT_OBSIDIAN_RAW_DIR = os.environ.get("OBSIDIAN_RAW_DIR", "")
 
 
 def publishable_rows(db_path: Path) -> list[sqlite3.Row]:
@@ -86,6 +88,29 @@ def verify_manifest(rows: list[sqlite3.Row], chatweb_repo: Path) -> dict[str, in
     }
 
 
+def mark_published(db_path: Path, rows: list[sqlite3.Row]) -> int:
+    ids = [row["id"] for row in rows if export_yuan_shan_markdown.row_get(row, "status") == "publish_ready"]
+    if not ids:
+        return 0
+
+    placeholders = ",".join("?" * len(ids))
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            f"""
+            UPDATE intelligence_items
+            SET status = 'published',
+                updated_at = datetime('now')
+            WHERE id IN ({placeholders})
+            """,
+            ids,
+        )
+        conn.commit()
+        return conn.total_changes
+    finally:
+        conn.close()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Export RSS intelligence to chatweb/content/yuan-shan and verify manifest ingestion.",
@@ -104,6 +129,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--miniflux-limit", type=int, default=int(os.environ.get("MINIFLUX_SYNC_LIMIT", "100")))
     parser.add_argument("--miniflux-timeout", type=int, default=int(os.environ.get("MINIFLUX_TIMEOUT", "20")))
     parser.add_argument("--default-category", default=os.environ.get("MINIFLUX_DEFAULT_CATEGORY", "AI"))
+    parser.add_argument(
+        "--enrich-pending",
+        action="store_true",
+        help="Run AI enrichment for starred_pending_ai rows before export.",
+    )
+    parser.add_argument("--ai-api-key", default=os.environ.get("AI_ENRICH_API_KEY") or os.environ.get("DEEPSEEK_API_KEY"))
+    parser.add_argument("--ai-base-url", default=os.environ.get("AI_ENRICH_BASE_URL") or os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"))
+    parser.add_argument("--ai-model", default=os.environ.get("AI_ENRICH_MODEL") or os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"))
+    parser.add_argument("--ai-limit", type=int, default=int(os.environ.get("AI_ENRICH_LIMIT", "10")))
+    parser.add_argument("--ai-timeout", type=int, default=int(os.environ.get("AI_ENRICH_TIMEOUT", "90")))
+    parser.add_argument("--obsidian-raw-dir", default=DEFAULT_OBSIDIAN_RAW_DIR)
+    parser.add_argument("--skip-obsidian", action="store_true")
     parser.add_argument("--build", action="store_true")
     parser.add_argument("--deploy", action="store_true")
     parser.add_argument("--qa-live", action="store_true")
@@ -134,6 +171,17 @@ def main(argv: list[str] | None = None) -> int:
         sync_summary = sync_miniflux.sync_entries(db_path, entries, args.default_category)
         print(f"synced Miniflux before publish: {sync_summary}", flush=True)
 
+    if args.enrich_pending:
+        enrich_summary = ai_enrich.enrich_pending(
+            db_path=db_path,
+            api_key=args.ai_api_key,
+            base_url=args.ai_base_url,
+            model=args.ai_model,
+            limit=args.ai_limit,
+            timeout=args.ai_timeout,
+        )
+        print(f"enriched pending rows before publish: {enrich_summary}", flush=True)
+
     rows = publishable_rows(db_path)
     if len(rows) < args.min_publishable:
         raise RuntimeError(
@@ -145,6 +193,17 @@ def main(argv: list[str] | None = None) -> int:
         f"exported {len(rows)} publishable row(s): {written} written, {unchanged} unchanged -> {out_dir}",
         flush=True,
     )
+
+    if args.obsidian_raw_dir and not args.skip_obsidian:
+        obs_written, obs_unchanged = export_yuan_shan_markdown.export_obsidian_rows(
+            rows,
+            Path(args.obsidian_raw_dir).expanduser().resolve(),
+            args.dry_run,
+        )
+        print(
+            f"exported Obsidian raw RSS notes: {obs_written} written, {obs_unchanged} unchanged -> {args.obsidian_raw_dir}",
+            flush=True,
+        )
 
     if args.dry_run:
         return 0
@@ -162,6 +221,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.qa_live:
         run(["npm", "run", "qa:live"], cwd=chatweb_repo)
+
+    marked = mark_published(db_path, rows)
+    if marked:
+        print(f"marked {marked} publish-ready row(s) as published", flush=True)
 
     return 0
 

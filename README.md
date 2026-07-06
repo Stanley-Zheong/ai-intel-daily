@@ -25,7 +25,7 @@ docs/topics/<topic>.html
 docs/sources/index.html
 ```
 
-公开页面只读取 `starred_for_daily`、`processed`、`published` 状态。`industry-crawler` 回流的 `candidate` 候选项必须先经过人工/规则确认,不会直接进入公开页面。
+公开页面只读取 `publish_ready`、`processed`、`published` 状态。Miniflux/NetNewsWire star 只会进入 `starred_pending_ai`，必须经过 AI 双语加工和结构校验后才会变成 `publish_ready`。`industry-crawler` 回流的 `candidate` 候选项必须先经过人工/规则确认,不会直接进入公开页面。
 
 ## 与 industry-crawler 的情报交换
 
@@ -68,6 +68,8 @@ python3 scripts/publish_to_chatweb.py \
   --db /opt/miniflux-rsshub/intel/intel.db \
   --chatweb-repo /path/to/chatweb \
   --sync-miniflux \
+  --enrich-pending \
+  --obsidian-raw-dir /opt/miniflux-rsshub/intel/obsidian/raw/rss \
   --min-publishable 1 \
   --build \
   --deploy \
@@ -78,24 +80,26 @@ python3 scripts/publish_to_chatweb.py \
 
 ```text
 Miniflux starred entries
-  -> intelligence_items(status = starred_for_daily)
-  -> intelligence_items(status in starred_for_daily / processed / published)
+  -> intelligence_items(status = starred_pending_ai)
+  -> AI enrichment(status = publish_ready)
+  -> intelligence_items(status in publish_ready / processed / published)
   -> chatweb/content/yuan-shan/*.md
+  -> obsidian/raw/rss/**/*.md
   -> chatweb npm run content:manifest
   -> 校验每条可发布 DB 行都进入远山 Markdown 和 manifest
   -> 可选 build/deploy/qa:live
 ```
 
 `--sync-miniflux` 会先调用 Miniflux API 拉取 `starred=true` 的条目。同步脚本会把
-starred 条目写成 `starred_for_daily`，避免条目停留在默认 `candidate` 状态而无法发布。
+starred 条目写成 `starred_pending_ai`，避免 RSS 原文绕过 AI 加工直接发布。
 
 如果可发布行数低于 `--min-publishable`，或者有 DB 行没有进入 `content-manifest.json`，脚本会非零退出，cron 日志会直接暴露链路断点。
 
 导出规则：
 
-- 只导出 `status in ('starred_for_daily', 'processed', 'published')` 的情报。
+- 只导出 `status in ('publish_ready', 'processed', 'published')` 的情报。
 - 每条情报生成一个稳定 Markdown 文件，不清空、不覆盖整个站点页面。
-- Markdown frontmatter 写入 `section: yuan-shan`，由 `chatweb` 统一生成列表页、分类页和详情页。
+- Markdown frontmatter 写入 `section: yuan-shan`、`language: bilingual`、中英双语标题/摘要/tags，由 `chatweb` 统一生成列表页、分类页和详情页。
 - 远山分类规范为 `AI`、`数据`、`新能源`、`传统AI+`、`教育AI+`。
 
 本地验证：

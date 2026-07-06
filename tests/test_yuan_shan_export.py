@@ -124,10 +124,10 @@ def make_minimal_chatweb(path: Path) -> None:
     (path / "src" / "generated").mkdir(parents=True)
     (path / "scripts").mkdir()
     shutil.copyfile(
-        Path("/tmp/chatweb-work/chatweb/scripts/generate-content-manifest.mjs"),
+        Path("/Users/laosanzheong/Documents/codebases/chatweb/scripts/generate-content-manifest.mjs"),
         path / "scripts" / "generate-content-manifest.mjs",
     )
-    os.symlink(Path("/tmp/chatweb-work/chatweb/node_modules"), path / "node_modules")
+    os.symlink(Path("/Users/laosanzheong/Documents/codebases/chatweb/node_modules"), path / "node_modules")
     (path / "package.json").write_text(
         json.dumps({"scripts": {"content:manifest": "node scripts/generate-content-manifest.mjs"}}),
         encoding="utf-8",
@@ -156,6 +156,9 @@ class TestYuanShanExport(unittest.TestCase):
             self.assertIn('section: "yuan-shan"', content)
             self.assertIn('category: "AI"', content)
             self.assertIn('category: "新能源"', content)
+            self.assertIn("<!-- lang:zh -->", content)
+            self.assertIn("<!-- lang:en -->", content)
+            self.assertIn("tags_en:", content)
             self.assertNotIn("未确认 crawler 候选", content)
 
     def test_publish_to_chatweb_generates_manifest_and_verifies_handoff(self) -> None:

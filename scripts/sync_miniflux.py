@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Sync selected Miniflux entries into the RSS intelligence database.
 
-The public site only receives rows whose status is publishable. Miniflux
-starred entries are therefore stored as `starred_for_daily` so the next
-publish step can export them into chatweb's Yuan Shan content directory.
+NetNewsWire stars sync into Miniflux starred entries. A star means "prepare
+this for publication", not "publish raw RSS text". New starred entries are
+therefore stored as `starred_pending_ai`; the AI enrichment step must create
+the bilingual public article before export.
 """
 
 from __future__ import annotations
@@ -22,8 +23,18 @@ import requests
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = os.environ.get("INTEL_DB_PATH", "/opt/miniflux-rsshub/intel/intel.db")
 DEFAULT_SCHEMA = REPO_ROOT / "db" / "schema.sql"
-PUBLISH_STATUS = "starred_for_daily"
-PROTECTED_STATUSES = {"processed", "published", "newsletter", "paid", "archived"}
+PENDING_STATUS = "starred_pending_ai"
+PROTECTED_STATUSES = {
+    "starred_pending_ai",
+    "ai_enriched",
+    "publish_ready",
+    "processed",
+    "published",
+    "newsletter",
+    "paid",
+    "archived",
+    "needs_review",
+}
 
 
 def utc_now() -> str:
@@ -39,6 +50,22 @@ def ensure_schema(conn: sqlite3.Connection, schema_path: Path = DEFAULT_SCHEMA) 
     migrations = {
         "updated_at": "ALTER TABLE intelligence_items ADD COLUMN updated_at TEXT",
         "raw_payload": "ALTER TABLE intelligence_items ADD COLUMN raw_payload TEXT",
+        "title_en": "ALTER TABLE intelligence_items ADD COLUMN title_en TEXT",
+        "summary_en": "ALTER TABLE intelligence_items ADD COLUMN summary_en TEXT",
+        "body_zh": "ALTER TABLE intelligence_items ADD COLUMN body_zh TEXT",
+        "body_en": "ALTER TABLE intelligence_items ADD COLUMN body_en TEXT",
+        "context_zh": "ALTER TABLE intelligence_items ADD COLUMN context_zh TEXT",
+        "context_en": "ALTER TABLE intelligence_items ADD COLUMN context_en TEXT",
+        "background_zh": "ALTER TABLE intelligence_items ADD COLUMN background_zh TEXT",
+        "background_en": "ALTER TABLE intelligence_items ADD COLUMN background_en TEXT",
+        "purpose_zh": "ALTER TABLE intelligence_items ADD COLUMN purpose_zh TEXT",
+        "purpose_en": "ALTER TABLE intelligence_items ADD COLUMN purpose_en TEXT",
+        "impact_en": "ALTER TABLE intelligence_items ADD COLUMN impact_en TEXT",
+        "action_en": "ALTER TABLE intelligence_items ADD COLUMN action_en TEXT",
+        "tags_zh": "ALTER TABLE intelligence_items ADD COLUMN tags_zh TEXT",
+        "tags_en": "ALTER TABLE intelligence_items ADD COLUMN tags_en TEXT",
+        "ai_model": "ALTER TABLE intelligence_items ADD COLUMN ai_model TEXT",
+        "ai_enriched_at": "ALTER TABLE intelligence_items ADD COLUMN ai_enriched_at TEXT",
     }
     for column, statement in migrations.items():
         if column not in existing:
@@ -102,7 +129,7 @@ def upsert_entry(
         (miniflux_entry_id, url),
     ).fetchone()
 
-    next_status = PUBLISH_STATUS
+    next_status = PENDING_STATUS
     if existing and existing["status"] in PROTECTED_STATUSES:
         next_status = existing["status"]
 
