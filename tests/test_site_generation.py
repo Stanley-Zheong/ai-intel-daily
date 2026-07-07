@@ -105,6 +105,8 @@ class TestSiteGeneration(unittest.TestCase):
                 html = fh.read()
 
             self.assertIn('class="app-shell"', html)
+            self.assertIn('class="brand-logo"', html)
+            self.assertIn('src="/assets/erDDshui_logo.png"', html)
             self.assertIn('class="sidebar"', html)
             self.assertIn('class="content-panel"', html)
             self.assertIn('class="context-panel"', html)
@@ -112,6 +114,7 @@ class TestSiteGeneration(unittest.TestCase):
             self.assertNotIn("Crawler-only candidate should stay private", html)
             self.assertIn("/topics/", html)
             self.assertIn("/sources/", html)
+            self.assertTrue(os.path.exists(os.path.join(out_dir, "assets", "erDDshui_logo.png")))
 
     def test_generates_topic_and_source_pages(self):
         with tempfile.TemporaryDirectory() as td:

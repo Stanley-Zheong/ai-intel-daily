@@ -50,6 +50,22 @@ PAGE = """<!DOCTYPE html>
   }}
   .sidebar {{ padding: 18px; }}
   .brand {{ margin-bottom: 22px; }}
+  .brand-mark {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }}
+  .brand-logo {{
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-soft);
+    object-fit: cover;
+  }}
+  .brand-text {{ min-width: 0; }}
   .brand strong {{ display: block; font-size: 18px; letter-spacing: 0; }}
   .brand span {{ display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }}
   .nav-section {{ margin-top: 20px; }}
@@ -287,6 +303,7 @@ PAGE = """<!DOCTYPE html>
     .hero,
     .item-card {{ margin-bottom: 12px; }}
     .sidebar {{ position: static; }}
+    .brand-logo {{ width: 40px; height: 40px; }}
     .nav-list {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
     h1 {{ font-size: 24px; }}
     .intel-grid {{ grid-template-columns: 1fr; }}
@@ -299,8 +316,13 @@ PAGE = """<!DOCTYPE html>
 <div class="app-shell">
   <aside class="sidebar">
     <div class="brand">
-      <strong>AI Intel Daily</strong>
-      <span>公开情报 · 人工筛选 · AI 辅助评分</span>
+      <div class="brand-mark">
+        <img class="brand-logo" src="/assets/erDDshui_logo.png" alt="二滴水 logo" width="44" height="44">
+        <div class="brand-text">
+          <strong>AI Intel Daily</strong>
+          <span>公开情报 · 人工筛选 · AI 辅助评分</span>
+        </div>
+      </div>
     </div>
     <div class="nav-section">
       <div class="nav-title">Views</div>

@@ -5,6 +5,7 @@ import hashlib
 import html
 import os
 import re
+import shutil
 import sqlite3
 import sys
 from collections import Counter, defaultdict
@@ -15,6 +16,8 @@ from template import EMPTY_STATE, ITEM_CARD, NAV_LINK, PAGE, TABLE_ROW, TEXT_ROW
 
 DB_PATH = os.environ.get("INTEL_DB_PATH", "/opt/miniflux-rsshub/intel/intel.db")
 OUT_DIR = os.environ.get("SITE_OUT_DIR", os.path.join(os.path.dirname(__file__), "..", "docs"))
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
+STATIC_ASSETS = ("erDDshui_logo.png",)
 
 # Only verified or daily-worthy records are public. Crawler candidates stay private.
 PUBLISH_STATUSES = ("publish_ready", "processed", "published")
@@ -41,6 +44,7 @@ def generate(db_path: str = DB_PATH, out_dir: str = OUT_DIR) -> dict[str, int]:
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(os.path.join(out_dir, "topics"), exist_ok=True)
     os.makedirs(os.path.join(out_dir, "sources"), exist_ok=True)
+    copy_static_assets(out_dir)
 
     context = build_context(rows)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -99,6 +103,16 @@ def generate(db_path: str = DB_PATH, out_dir: str = OUT_DIR) -> dict[str, int]:
         page_count += 1
 
     return {"items": len(rows), "pages": page_count}
+
+
+def copy_static_assets(out_dir: str) -> None:
+    asset_out_dir = os.path.join(out_dir, "assets")
+    os.makedirs(asset_out_dir, exist_ok=True)
+    for asset_name in STATIC_ASSETS:
+        shutil.copy2(
+            os.path.join(ASSETS_DIR, asset_name),
+            os.path.join(asset_out_dir, asset_name),
+        )
 
 
 def build_context(rows: list[sqlite3.Row]) -> dict[str, object]:
